@@ -1,0 +1,49 @@
+# Nazwa całego workflow (automatyzacji)
+name: Zbierz Statystyki ShowUp
+
+# Definicja, kiedy ten workflow ma się uruchamiać
+on:
+  # Uruchom co 30 minut (używa składni cron)
+  schedule:
+    - cron: '*/30 * * * *'
+  
+  # Dodaje przycisk "Run workflow" w zakładce Actions, aby móc uruchomić go ręcznie
+  workflow_dispatch:
+
+# Definicja zadań do wykonania
+jobs:
+  build-and-commit:
+    # Uruchom na najnowszej wersji wirtualnej maszyny z Ubuntu
+    runs-on: ubuntu-latest
+
+    # Kroki, które mają zostać wykonane po kolei
+    steps:
+      # 1. Pobierz kod z Twojego repozytorium na wirtualną maszynę
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 2. Ustaw środowisko Python w wersji 3.9
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      # 3. Zainstaluj potrzebne biblioteki z pliku requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. Uruchom główny skrypt Pythona
+      - name: Run the scraper
+        run: python scraper.py
+
+      # 5. Zapisz zmiany (nowy wiersz w pliku dane.csv) z powrotem do repozytorium
+      - name: Commit and push if it changed
+        run: |-
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add dane.csv
+          # Sprawdź, czy są jakieś zmiany do zapisania, i tylko wtedy je zapisz
+          git diff --staged --quiet || git commit -m "Aktualizacja danych"
+          git push
