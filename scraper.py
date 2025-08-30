@@ -1,4 +1,4 @@
-# scraper.py - WERSJA OSTATECZNA (SELENIUM)
+# scraper.py - WERSJA OSTATECZNA (SELENIUM z poprawną strefą czasową)
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -7,15 +7,15 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from datetime import datetime
 import os
 import re
+# --- POCZĄTEK ZMIANY ---
+from zoneinfo import ZoneInfo # Importujemy moduł do obsługi stref czasowych
+# --- KONIEC ZMIANY ---
 
 BASE_URL = "https://showup.tv/"
 OUTPUT_FILE = "dane.csv"
-# Wyrażenie regularne do wyciągania liczb
 STATS_REGEX = r'(\d+)\s*transmisji\s*i\s*(\d+)\s*oglądających'
 
 def gather_stats():
-    """Używa pełnej przeglądarki Selenium do interakcji ze stroną."""
-    # Ustawienia przeglądarki Chrome do działania w tle na serwerze
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
@@ -29,28 +29,23 @@ def gather_stats():
         driver.get(BASE_URL)
         print("Strona załadowana. Sprawdzanie, czy jest bramka...")
 
-        # KROK 1: Kliknij przycisk "Wchodzę", jeśli istnieje
         try:
-            # Czekamy maksymalnie 10 sekund na pojawienie się przycisku
             enter_button = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, "//a[contains(text(), 'Wchodzę')]"))
             )
             print("Znaleziono przycisk 'Wchodzę'. Klikam...")
             enter_button.click()
         except TimeoutException:
-            print("Nie znaleziono przycisku 'Wchodzę' w ciągu 10 sekund. Zakładam, że jesteśmy na stronie głównej.")
+            print("Nie znaleziono przycisku 'Wchodzę'. Zakładam, że jesteśmy na stronie głównej.")
 
-        # KROK 2: Poczekaj na załadowanie danych
         print("Czekanie na pojawienie się danych na stronie głównej...")
         try:
-            # Czekamy maksymalnie 20 sekund, aż pojawi się element h4 zawierający słowo "transmisji"
             stats_element = WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.XPATH, "//h4[contains(text(), 'transmisji')]"))
             )
             print("Dane załadowane. Odczytywanie...")
-            stats_text = stats_element.text # Pobieramy tekst, np. "79 transmisji i 3682 oglądających"
+            stats_text = stats_element.text
             
-            # KROK 3: Wyciągnij liczby z tekstu
             match = re.search(STATS_REGEX, stats_text)
             if match:
                 active_streams = match.group(1)
@@ -60,7 +55,6 @@ def gather_stats():
             else:
                 print("Nie udało się wyciągnąć danych z tekstu: " + stats_text)
                 return "BŁĄD PARSOWANIA", "BŁĄD PARSOWANIA"
-
         except TimeoutException:
             print("Dane nie pojawiły się na stronie w ciągu 20 sekund.")
             return "TIMEOUT DANYCH", "TIMEOUT DANYCH"
@@ -82,7 +76,10 @@ def save_to_csv(data):
 
 if __name__ == "__main__":
     print("Rozpoczynam zbieranie danych za pomocą Selenium...")
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # --- POCZĄTEK ZMIANY ---
+    # Pobieramy aktualny czas, ale dla konkretnej strefy czasowej
+    current_time = datetime.now(ZoneInfo("Europe/Warsaw")).strftime('%Y-%m-%d %H:%M:%S')
+    # --- KONIEC ZMIANY ---
     users, streams = gather_stats()
     save_to_csv((current_time, users, streams))
     print(f"Dane zostały zapisane do pliku {OUTPUT_FILE}")
