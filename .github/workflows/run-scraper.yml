@@ -1,8 +1,9 @@
 name: Zbierz Statystyki ShowUp
 
 on:
-  schedule:
-    - cron: '*/30 * * * *'
+ schedule:
+    # Uruchom co 20 minut (o :00, :20, :40 każdej godziny)
+    - cron: '*/20 * * * *'
   workflow_dispatch:
 
 jobs:
