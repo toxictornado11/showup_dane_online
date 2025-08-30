@@ -1,65 +1,77 @@
-# scraper.py - WERSJA OSTATECZNA (PRODUKCJA)
-import cloudscraper
-from bs4 import BeautifulSoup
+# scraper.py - WERSJA OSTATECZNA (SELENIUM)
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from datetime import datetime
 import os
 import re
-from urllib.parse import urljoin
 
 BASE_URL = "https://showup.tv/"
 OUTPUT_FILE = "dane.csv"
-# Wyrażenie regularne szukające liczb obok kluczowych słów
-STREAMS_REGEX = r'(\d+)\s*transmisji'
-USERS_REGEX = r'(\d+)\s*oglądających'
+# Wyrażenie regularne do wyciągania liczb
+STATS_REGEX = r'(\d+)\s*transmisji\s*i\s*(\d+)\s*oglądających'
 
 def gather_stats():
-    """Pobiera statystyki, realizując pełen proces i szukając danych za pomocą regex."""
+    """Używa pełnej przeglądarki Selenium do interakcji ze stroną."""
+    # Ustawienia przeglądarki Chrome do działania w tle na serwerze
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36')
+    
+    driver = None
     try:
-        scraper = cloudscraper.create_scraper() 
-        
-        print("Krok 1: Omijanie Cloudflare...")
-        rules_page_response = scraper.get(BASE_URL, timeout=30)
-        rules_page_response.raise_for_status()
+        print("Uruchamianie wirtualnej przeglądarki Chrome...")
+        driver = webdriver.Chrome(options=options)
+        driver.get(BASE_URL)
+        print("Strona załadowana. Sprawdzanie, czy jest bramka...")
 
-        soup_rules = BeautifulSoup(rules_page_response.text, 'html.parser')
-        form = soup_rules.find('form', {'id': 'acceptrules'})
-        
-        if not form:
-            main_page_response = rules_page_response
-        else:
-            action_url = form.get('action', '')
-            post_url = urljoin(BASE_URL, action_url)
-            form_data = {'decision': 'true'}
-            print("Krok 2: Wysyłanie formularza akceptacji...")
-            scraper.post(post_url, data=form_data, timeout=30).raise_for_status()
+        # KROK 1: Kliknij przycisk "Wchodzę", jeśli istnieje
+        try:
+            # Czekamy maksymalnie 10 sekund na pojawienie się przycisku
+            enter_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//a[contains(text(), 'Wchodzę')]"))
+            )
+            print("Znaleziono przycisk 'Wchodzę'. Klikam...")
+            enter_button.click()
+        except TimeoutException:
+            print("Nie znaleziono przycisku 'Wchodzę' w ciągu 10 sekund. Zakładam, że jesteśmy na stronie głównej.")
+
+        # KROK 2: Poczekaj na załadowanie danych
+        print("Czekanie na pojawienie się danych na stronie głównej...")
+        try:
+            # Czekamy maksymalnie 20 sekund, aż pojawi się element h4 zawierający słowo "transmisji"
+            stats_element = WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.XPATH, "//h4[contains(text(), 'transmisji')]"))
+            )
+            print("Dane załadowane. Odczytywanie...")
+            stats_text = stats_element.text # Pobieramy tekst, np. "79 transmisji i 3682 oglądających"
             
-            print("Krok 3: Pobieranie finalnej strony głównej...")
-            main_page_response = scraper.get(BASE_URL, timeout=30)
-            main_page_response.raise_for_status()
-        
-        print("Pobrano stronę, rozpoczynam szukanie danych...")
-        return parse_stats_from_text(main_page_response.text)
+            # KROK 3: Wyciągnij liczby z tekstu
+            match = re.search(STATS_REGEX, stats_text)
+            if match:
+                active_streams = match.group(1)
+                users_online = match.group(2)
+                print(f"Sukces! Znaleziono: {users_online} użytkowników, {active_streams} transmisji.")
+                return users_online, active_streams
+            else:
+                print("Nie udało się wyciągnąć danych z tekstu: " + stats_text)
+                return "BŁĄD PARSOWANIA", "BŁĄD PARSOWANIA"
+
+        except TimeoutException:
+            print("Dane nie pojawiły się na stronie w ciągu 20 sekund.")
+            return "TIMEOUT DANYCH", "TIMEOUT DANYCH"
 
     except Exception as e:
-        print(f"Wystąpił nieoczekiwany błąd: {e}")
+        print(f"Wystąpił krytyczny błąd Selenium: {e}")
         return "BŁĄD KRYTYCZNY", "BŁĄD KRYTYCZNY"
-
-def parse_stats_from_text(html_content):
-    """Wyciąga dane z całego tekstu strony za pomocą wyrażeń regularnych."""
-    soup = BeautifulSoup(html_content, 'html.parser')
-    page_text = soup.get_text(" ", strip=True) # Pobierz cały tekst ze strony
-
-    streams_match = re.search(STREAMS_REGEX, page_text)
-    users_match = re.search(USERS_REGEX, page_text)
-    
-    if streams_match and users_match:
-        active_streams = streams_match.group(1)
-        users_online = users_match.group(1)
-        print(f"Sukces! Znaleziono dane: {users_online} użytkowników, {active_streams} transmisji.")
-        return users_online, active_streams
-    else:
-        print("Nie znaleziono wzorców statystyk w tekście strony.")
-        return "WZORZEC NIEZGODNY", "WZORZEC NIEZGODNY"
+    finally:
+        if driver:
+            driver.quit()
+            print("Przeglądarka zamknięta.")
 
 def save_to_csv(data):
     file_exists = os.path.isfile(OUTPUT_FILE)
@@ -69,7 +81,7 @@ def save_to_csv(data):
         f.write(f"{data[0]},{data[1]},{data[2]}\n")
 
 if __name__ == "__main__":
-    print("Rozpoczynam zbieranie danych...")
+    print("Rozpoczynam zbieranie danych za pomocą Selenium...")
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     users, streams = gather_stats()
     save_to_csv((current_time, users, streams))
