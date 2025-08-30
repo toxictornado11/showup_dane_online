@@ -1,10 +1,19 @@
 name: Zbierz i Wizualizuj Statystyki
 
 on:
+  # --- POCZĄTEK ZMIANY ---
+  # Utrzymujemy oba wyzwalacze. 'schedule' będzie działał jako "zapalnik",
+  # a 'push' zapewni ciągłość działania.
   schedule:
-    # Uruchom co 20 minut. UWAGA: Może przekroczyć darmowy limit!
-    # Bezpieczniejsza opcja to '*/30 * * * *' (co 30 minut)
     - cron: '*/10 * * * *'
+  
+  # Nowy wyzwalacz: uruchom przy każdym 'push' do gałęzi 'main'
+  push:
+    branches:
+      - main
+  # --- KONIEC ZMIANY ---
+
+  # Pozostawiamy możliwość ręcznego uruchomienia
   workflow_dispatch:
 
 jobs:
@@ -16,6 +25,15 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # --- NOWY WARUNEK: Sprawdzamy, czy commit został wykonany przez bota ---
+      # Ten krok zapobiegnie niekończącej się pętli. Automat będzie ignorował
+      # własne commity, ale nadal będzie działał zgodnie z harmonogramem.
+      - name: Check if the commit was made by the bot
+        if: github.actor == 'actions-user' || github.actor == 'github-actions[bot]'
+        run: |
+          echo "Commit was made by the bot. Skipping this run to prevent loops."
+          exit 0 # Zakończ z sukcesem, ale nie wykonuj dalszych kroków
+        
       - name: Install Google Chrome
         run: |
           sudo apt-get update
@@ -42,6 +60,5 @@ jobs:
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           git add dane.csv index.html
-          # Sprawdź, czy są zmiany, i tylko wtedy je zapisz
           git diff --staged --quiet || git commit -m "Aktualizacja danych i wykresu"
           git push
