@@ -3,11 +3,10 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import os
-import re # Import modułu do wyrażeń regularnych
+import re
 
 # --- USTAWIENIA ---
 URL = "https://showup.tv"
-# Selektor dla elementu <h4>, który zawiera obie informacje
 STATS_SELECTOR = "h4" 
 OUTPUT_FILE = "dane.csv"
 # ----------------------------------------------------
@@ -15,28 +14,33 @@ OUTPUT_FILE = "dane.csv"
 def gather_stats():
     """Pobiera statystyki ze strony i zwraca je jako krotkę (uzytkownicy, transmisje)."""
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        # --- POCZĄTEK ZMIANY ---
+        # Dodajemy więcej nagłówków, aby lepiej symulować prawdziwą przeglądarkę
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+            'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+        }
+        # --- KONIEC ZMIANY ---
+
         response = requests.get(URL, headers=headers, timeout=15)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.text, 'html.parser')
-
-        # Znajdź element h4 na stronie
         stats_element = soup.select_one(STATS_SELECTOR)
 
         if not stats_element:
             print("Nie znaleziono elementu ze statystykami.")
             return "SELEKTOR BŁĘDNY", "SELEKTOR BŁĘDNY"
 
-        # Wyciągnij cały tekst z elementu, np. "70 transmisji i 3254 oglądających"
         full_text = stats_element.get_text(strip=True)
-        
-        # Użyj wyrażeń regularnych, aby znaleźć wszystkie liczby w tekście
         numbers = re.findall(r'\d+', full_text)
         
-        # Sprawdź, czy znaleziono co najmniej dwie liczby
         if len(numbers) >= 2:
-            # Na podstawie formatu "XX transmisji i YYYY oglądających"
             active_streams = numbers[0]
             users_online = numbers[1]
             return users_online, active_streams
