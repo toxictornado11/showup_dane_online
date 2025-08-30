@@ -1,15 +1,14 @@
-# scraper.py - WERSJA OSTATECZNA (SELENIUM z poprawną strefą czasową)
+# scraper.py - WERSJA Z ANALIZATOREM CZASU
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException
 from datetime import datetime
 import os
 import re
-# --- POCZĄTEK ZMIANY ---
-from zoneinfo import ZoneInfo # Importujemy moduł do obsługi stref czasowych
-# --- KONIEC ZMIANY ---
+from zoneinfo import ZoneInfo
+import time # --- ZMIANA: Importujemy moduł do mierzenia czasu ---
 
 BASE_URL = "https://showup.tv/"
 OUTPUT_FILE = "dane.csv"
@@ -24,26 +23,21 @@ def gather_stats():
     
     driver = None
     try:
-        print("Uruchamianie wirtualnej przeglądarki Chrome...")
         driver = webdriver.Chrome(options=options)
         driver.get(BASE_URL)
-        print("Strona załadowana. Sprawdzanie, czy jest bramka...")
 
         try:
             enter_button = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, "//a[contains(text(), 'Wchodzę')]"))
             )
-            print("Znaleziono przycisk 'Wchodzę'. Klikam...")
             enter_button.click()
         except TimeoutException:
-            print("Nie znaleziono przycisku 'Wchodzę'. Zakładam, że jesteśmy na stronie głównej.")
+            pass # Ignorujemy, jeśli nie ma przycisku
 
-        print("Czekanie na pojawienie się danych na stronie głównej...")
         try:
             stats_element = WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.XPATH, "//h4[contains(text(), 'transmisji')]"))
             )
-            print("Dane załadowane. Odczytywanie...")
             stats_text = stats_element.text
             
             match = re.search(STATS_REGEX, stats_text)
@@ -53,33 +47,42 @@ def gather_stats():
                 print(f"Sukces! Znaleziono: {users_online} użytkowników, {active_streams} transmisji.")
                 return users_online, active_streams
             else:
-                print("Nie udało się wyciągnąć danych z tekstu: " + stats_text)
-                return "BŁĄD PARSOWANIA", "BŁĄD PARSOWANIA"
+                # --- ZMIANA: Zwracamy puste wartości zamiast tekstu błędu ---
+                return '', ''
         except TimeoutException:
-            print("Dane nie pojawiły się na stronie w ciągu 20 sekund.")
-            return "TIMEOUT DANYCH", "TIMEOUT DANYCH"
+            # --- ZMIANA: Zwracamy puste wartości zamiast tekstu błędu ---
+            return '', ''
 
     except Exception as e:
         print(f"Wystąpił krytyczny błąd Selenium: {e}")
-        return "BŁĄD KRYTYCZNY", "BŁĄD KRYTYCZNY"
+        # --- ZMIANA: Zwracamy puste wartości zamiast tekstu błędu ---
+        return '', ''
     finally:
         if driver:
             driver.quit()
-            print("Przeglądarka zamknięta.")
 
 def save_to_csv(data):
     file_exists = os.path.isfile(OUTPUT_FILE)
     with open(OUTPUT_FILE, 'a', newline='', encoding='utf-8') as f:
-        if not file_exists:
-            f.write("data_i_godzina,uzytkownicy_online,aktywne_transmisje\n")
-        f.write(f"{data[0]},{data[1]},{data[2]}\n")
+        # --- ZMIANA: Dodajemy nową kolumnę do nagłówka ---
+        if not file_exists or os.path.getsize(OUTPUT_FILE) == 0:
+            f.write("data_i_godzina,uzytkownicy_online,aktywne_transmisje,czas_wykonania_s\n")
+        
+        # --- ZMIANA: Zapisujemy cztery wartości ---
+        f.write(f"{data[0]},{data[1]},{data[2]},{data[3]}\n")
 
 if __name__ == "__main__":
+    start_time = time.time() # --- ZMIANA: Zapisujemy czas startu ---
+    
     print("Rozpoczynam zbieranie danych za pomocą Selenium...")
-    # --- POCZĄTEK ZMIANY ---
-    # Pobieramy aktualny czas, ale dla konkretnej strefy czasowej
     current_time = datetime.now(ZoneInfo("Europe/Warsaw")).strftime('%Y-%m-%d %H:%M:%S')
-    # --- KONIEC ZMIANY ---
     users, streams = gather_stats()
-    save_to_csv((current_time, users, streams))
+    
+    end_time = time.time() # --- ZMIANA: Zapisujemy czas końca ---
+    duration = round(end_time - start_time, 2) # --- ZMIANA: Obliczamy czas trwania ---
+    
+    print(f"Czas wykonania skryptu: {duration}s")
+    
+    # --- ZMIANA: Przekazujemy czas trwania do funkcji zapisującej ---
+    save_to_csv((current_time, users, streams, duration))
     print(f"Dane zostały zapisane do pliku {OUTPUT_FILE}")
