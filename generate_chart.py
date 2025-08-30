@@ -1,40 +1,45 @@
-# generate_chart.py - WERSJA Z ANALIZATOREM
+# generate_chart.py - WERSJA SAMONAPRAWIAJĄCA
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import os
 
 DATA_FILE = 'dane.csv'
 OUTPUT_FILE = 'index.html'
 
-# --- NOWA FUNKCJA DO CZYSZCZENIA DANYCH ---
 def clean_and_load_data():
     """Wczytuje dane i czyści je z historycznych błędów."""
     try:
-        df = pd.read_csv(DATA_FILE)
+        # --- KLUCZOWA ZMIANA: Jawnie mówimy pandas, żeby użył pierwszej linii jako nagłówka ---
+        df = pd.read_csv(DATA_FILE, header=0)
     except FileNotFoundError:
         return None
+    # --- NOWA SEKCJA: Obsługa błędów parsowania ---
+    except pd.errors.ParserError:
+        print(f"Błąd formatowania w pliku {DATA_FILE}. Plik zostanie zresetowany przy następnym uruchomieniu.")
+        # Usuwamy uszkodzony plik. Skrypt scraper.py stworzy go od nowa.
+        os.remove(DATA_FILE)
+        return None
 
-    # Konwertujemy kolumny na liczby, a wszystkie błędy (stare teksty) zamieniamy na puste komórki (NaN)
     df['uzytkownicy_online'] = pd.to_numeric(df['uzytkownicy_online'], errors='coerce')
     df['aktywne_transmisje'] = pd.to_numeric(df['aktywne_transmisje'], errors='coerce')
     
-    # Jeśli kolumna czasu wykonania nie istnieje, stwórz ją i wypełnij zerami
     if 'czas_wykonania_s' not in df.columns:
         df['czas_wykonania_s'] = 0
     df['czas_wykonania_s'] = pd.to_numeric(df['czas_wykonania_s'], errors='coerce').fillna(0)
 
-    # Konwertujemy kolumnę z datą
     df['data_i_godzina'] = pd.to_datetime(df['data_i_godzina'])
     
     return df
 
+# Reszta pliku pozostaje bez zmian
 def create_chart_and_analysis():
     df = clean_and_load_data()
 
     if df is None or df.empty:
-        print(f"Plik {DATA_FILE} nie istnieje lub jest pusty.")
+        print(f"Plik {DATA_FILE} nie istnieje lub jest pusty. Tworzę pusty plik HTML.")
         with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-            f.write("<html><body><h1>Brak danych do wygenerowania wykresu.</h1></body></html>")
+            f.write("<html><body><h1>Brak danych do wygenerowania wykresu. Czekam na pierwszy odczyt...</h1></body></html>")
         return
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -59,7 +64,6 @@ def create_chart_and_analysis():
         )
     )
 
-    # --- NOWA SEKCJA: ANALIZA CZASU WYKONANIA ---
     avg_duration = df[df['czas_wykonania_s'] > 0]['czas_wykonania_s'].mean()
     runs_per_day_20min = 24 * 3
     runs_per_day_30min = 24 * 2
@@ -80,7 +84,6 @@ def create_chart_and_analysis():
     </div>
     """
 
-    # Łączymy wykres i analizę w jeden plik HTML
     chart_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
     
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
