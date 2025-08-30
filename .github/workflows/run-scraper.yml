@@ -16,6 +16,12 @@ jobs:
     # Uruchom na najnowszej wersji wirtualnej maszyny z Ubuntu
     runs-on: ubuntu-latest
 
+    # --- POCZĄTEK ZMIANY ---
+    # Nadaj automatowi uprawnienia do zapisu w repozytorium
+    permissions:
+      contents: write
+    # --- KONIEC ZMIANY ---
+
     # Kroki, które mają zostać wykonane po kolei
     steps:
       # 1. Pobierz kod z Twojego repozytorium na wirtualną maszynę
