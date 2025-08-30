@@ -6,35 +6,50 @@ import os
 import re
 
 # --- USTAWIENIA ---
-URL = "https://showup.tv"
+# Zmieniamy adresy URL na dwa kroki
+RULES_URL = "https://showup.tv/site/accept_rules"
+STATS_URL = "https://showup.tv/"
 STATS_SELECTOR = "h4" 
 OUTPUT_FILE = "dane.csv"
 # ----------------------------------------------------
 
 def gather_stats():
-    """Pobiera statystyki ze strony i zwraca je jako krotkę (uzytkownicy, transmisje)."""
+    """Pobiera statystyki ze strony, przechodząc najpierw przez bramkę z regulaminem."""
     try:
-        # --- POCZĄTEK ZMIANY ---
-        # Dodajemy więcej nagłówków, aby lepiej symulować prawdziwą przeglądarkę
+        # --- KLUCZOWA ZMIANA: Tworzymy obiekt Sesji ---
+        # Sesja będzie zachowywać się jak przeglądarka i pamiętać ciasteczka między zapytaniami.
+        session = requests.Session()
+
+        # Ustawiamy nagłówki, aby wyglądać jak prawdziwa przeglądarka
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
             'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0',
+            'Referer': STATS_URL # Ważne - udajemy, że przyszliśmy ze strony głównej
         }
-        # --- KONIEC ZMIANY ---
+        session.headers.update(headers)
 
-        response = requests.get(URL, headers=headers, timeout=15)
-        response.raise_for_status()
+        # --- KROK 1: Akceptacja regulaminu ---
+        # Wysyłamy żądanie POST do strony z regulaminem, aby otrzymać ciasteczko.
+        # Nie musimy wysyłać żadnych danych, sam fakt wysłania POST wystarczy.
+        print("Krok 1: Akceptowanie regulaminu...")
+        response_rules = session.post(RULES_URL, timeout=15)
+        response_rules.raise_for_status()
+        print("Regulamin zaakceptowany, serwer prawdopodobnie ustawił cookie.")
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # --- KROK 2: Pobranie strony głównej ---
+        # Teraz, z ciasteczkiem w sesji, wchodzimy na stronę główną.
+        print("Krok 2: Pobieranie strony głównej...")
+        response_stats = session.get(STATS_URL, timeout=15)
+        response_stats.raise_for_status()
+        print("Pobrano stronę główną.")
+
+        # Dalsza część kodu pozostaje bez zmian - parsowanie danych
+        soup = BeautifulSoup(response_stats.text, 'html.parser')
         stats_element = soup.select_one(STATS_SELECTOR)
 
         if not stats_element:
-            print("Nie znaleziono elementu ze statystykami.")
+            print("Nie znaleziono elementu ze statystykami na stronie głównej.")
             return "SELEKTOR BŁĘDNY", "SELEKTOR BŁĘDNY"
 
         full_text = stats_element.get_text(strip=True)
