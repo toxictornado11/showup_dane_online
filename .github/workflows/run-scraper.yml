@@ -1,13 +1,14 @@
-name: Zbierz Statystyki ShowUp
+name: Zbierz i Wizualizuj Statystyki
 
 on:
- schedule:
-    # Uruchom co 20 minut (o :00, :20, :40 każdej godziny)
+  schedule:
+    # Uruchom co 20 minut. UWAGA: Może przekroczyć darmowy limit!
+    # Bezpieczniejsza opcja to '*/30 * * * *' (co 30 minut)
     - cron: '*/20 * * * *'
   workflow_dispatch:
 
 jobs:
-  build-and-commit:
+  build-and-visualize:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,7 +16,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # --- NOWY KROK: INSTALACJA GOOGLE CHROME ---
       - name: Install Google Chrome
         run: |
           sudo apt-get update
@@ -31,13 +31,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run the scraper
+      - name: Krok 1 - Zbierz nowe dane
         run: python scraper.py
 
-      - name: Commit and push if it changed
+      - name: Krok 2 - Wygeneruj nowy wykres
+        run: python generate_chart.py
+
+      - name: Krok 3 - Zapisz wyniki (dane i wykres)
         run: |-
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
-          git add dane.csv
-          git diff --staged --quiet || git commit -m "Aktualizacja danych"
+          git add dane.csv index.html
+          # Sprawdź, czy są zmiany, i tylko wtedy je zapisz
+          git diff --staged --quiet || git commit -m "Aktualizacja danych i wykresu"
           git push
