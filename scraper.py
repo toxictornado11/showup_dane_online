@@ -1,4 +1,4 @@
-# scraper.py - WERSJA PRODUKCYJNA
+# scraper.py - WERSJA OSTATECZNA (SNIPER)
 import cloudscraper
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -8,72 +8,62 @@ from urllib.parse import urljoin
 
 # --- USTAWIENIA ---
 BASE_URL = "https://showup.tv/"
-STATS_SELECTOR = "h4"  # Wracamy do pierwotnego selektora, który teraz powinien zadziałać
 OUTPUT_FILE = "dane.csv"
+# Wyrażenie regularne szukające frazy "X transmisji i Y oglądających"
+STATS_REGEX = r'(\d+)\s*transmisji\s*i\s*(\d+)\s*oglądających'
 # ----------------------------------------------------
 
 def gather_stats():
-    """Pobiera statystyki, realizując pełen, trójstopniowy proces logowania."""
+    """Pobiera statystyki, realizując pełen proces i szukając danych za pomocą regex."""
     try:
         scraper = cloudscraper.create_scraper() 
         
-        # KROK 1: Wejdź na stronę, aby ominąć Cloudflare i pobrać stronę z regulaminem.
-        print("Krok 1: Omijanie Cloudflare i pobieranie strony z regulaminem...")
+        # Krok 1: Ominięcie Cloudflare
+        print("Krok 1: Omijanie Cloudflare...")
         rules_page_response = scraper.get(BASE_URL, timeout=30)
         rules_page_response.raise_for_status()
-        print("Ochrona Cloudflare ominięta.")
 
-        # KROK 2: Wyślij formularz akceptacji, aby ustawić ciasteczko w sesji.
+        # Krok 2: Wysłanie formularza akceptacji
         soup_rules = BeautifulSoup(rules_page_response.text, 'html.parser')
         form = soup_rules.find('form', {'id': 'acceptrules'})
         
         if not form:
-            # Jeśli nie ma formularza, to znaczy, że jesteśmy już na stronie głównej.
-            print("Nie znaleziono formularza, zakładam, że jesteśmy na stronie głównej.")
             main_page_response = rules_page_response
         else:
             action_url = form.get('action', '')
             post_url = urljoin(BASE_URL, action_url)
             form_data = {'decision': 'true'}
-            
-            print(f"Krok 2: Wysyłanie formularza akceptacji na adres: {post_url}")
-            # Ta operacja głównie ustawia ciasteczko, treść odpowiedzi nie jest istotna.
-            post_response = scraper.post(post_url, data=form_data, timeout=30)
-            post_response.raise_for_status()
-            print("Formularz wysłany, sesja powinna być aktywna.")
+            print("Krok 2: Wysyłanie formularza akceptacji...")
+            scraper.post(post_url, data=form_data, timeout=30).raise_for_status()
 
-            # KROK 3: Wejdź PONOWNIE na stronę główną, aby odczytać dane z aktywnej sesji.
-            print("Krok 3: Pobieranie strony głównej z aktywną sesją...")
+            # Krok 3: Pobranie strony głównej z aktywną sesją
+            print("Krok 3: Pobieranie finalnej strony głównej...")
             main_page_response = scraper.get(BASE_URL, timeout=30)
             main_page_response.raise_for_status()
         
-        print("Pobrano finalną wersję strony głównej.")
-        return parse_stats_from_page(main_page_response.text)
+        print("Pobrano stronę, rozpoczynam szukanie danych...")
+        return parse_stats_with_regex(main_page_response.text)
 
     except Exception as e:
         print(f"Wystąpił nieoczekiwany błąd: {e}")
-        return "BŁĄD KRYTYCZNY", str(e)
+        return "BŁĄD KRYTYCZNY", "BŁĄD KRYTYCZNY"
 
-def parse_stats_from_page(html_content):
-    """Pomocnicza funkcja do wyciągania danych z kodu HTML strony."""
-    soup = BeautifulSoup(html_content, 'html.parser')
-    stats_element = soup.select_one(STATS_SELECTOR)
-
-    if not stats_element:
-        print("Nie znaleziono elementu ze statystykami.")
-        return "SELEKTOR BŁĘDNY", "SELEKTOR BŁĘDNY"
-
-    full_text = stats_element.get_text(strip=True)
-    numbers = re.findall(r'\d+', full_text)
+def parse_stats_with_regex(html_content):
+    """Wyciąga dane z całego tekstu strony za pomocą wyrażenia regularnego."""
+    # Szukamy naszego wzorca w całym kodzie HTML
+    match = re.search(STATS_REGEX, html_content)
     
-    if len(numbers) >= 2:
-        active_streams = numbers[0]
-        users_online = numbers[1]
-        print(f"Znaleziono dane: {users_online} użytkowników, {active_streams} transmisji.")
+    if match:
+        # match.group(1) to pierwsza znaleziona liczba (transmisje)
+        # match.group(2) to druga znaleziona liczba (oglądający)
+        active_streams = match.group(1)
+        users_online = match.group(2)
+        print(f"Sukces! Znaleziono dane: {users_online} użytkowników, {active_streams} transmisji.")
+        # Zwracamy w prawidłowej kolejności: użytkownicy, transmisje
         return users_online, active_streams
     else:
-        print(f"Nie udało się wyodrębnić liczb z tekstu: '{full_text}'")
-        return "BŁĄD PARSOWANIA", "BŁĄD PARSOWANIA"
+        print("Nie znaleziono wzorca statystyk w kodzie strony.")
+        return "WZORZEC NIEZGODNY", "WZORZEC NIEZGODNY"
 
 def save_to_csv(data):
     """Zapisuje dane do pliku CSV."""
