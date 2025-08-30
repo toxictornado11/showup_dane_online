@@ -24,18 +24,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run the scraper
-        # Zmieniamy nazwę kroku na bardziej adekwatną do misji diagnostycznej
-        name: Run diagnostics to save page source
+      # Zmieniamy nazwę kroku na bardziej adekwatną do misji diagnostycznej
+      - name: Run diagnostics to save page source
         run: python scraper.py
 
-      # --- POCZĄTEK NOWEGO KROKU ---
       # Ten krok zapisze wygenerowany plik jako "artefakt" do pobrania
       - name: Upload page source as artifact
         uses: actions/upload-artifact@v4
         with:
           name: page-source # Nazwa artefaktu
           path: page_content.html # Plik, który ma zostać spakowany
-      # --- KONIEC NOWEGO KROKU ---
-
-      # Krok zapisu do CSV jest teraz niepotrzebny, więc go usuwamy
