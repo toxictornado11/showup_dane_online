@@ -1,102 +1,42 @@
-# generate_chart.py - WERSJA SAMONAPRAWIAJĄCA
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import os
+name: Zbierz i Wizualizuj Statystyki
 
-DATA_FILE = 'dane.csv'
-OUTPUT_FILE = 'index.html'
+on:
+  workflow_dispatch:
 
-def clean_and_load_data():
-    """Wczytuje dane i czyści je z historycznych błędów."""
-    try:
-        # --- KLUCZOWA ZMIANA: Jawnie mówimy pandas, żeby użył pierwszej linii jako nagłówka ---
-        df = pd.read_csv(DATA_FILE, header=0)
-    except FileNotFoundError:
-        return None
-    # --- NOWA SEKCJA: Obsługa błędów parsowania ---
-    except pd.errors.ParserError:
-        print(f"Błąd formatowania w pliku {DATA_FILE}. Plik zostanie zresetowany przy następnym uruchomieniu.")
-        # Usuwamy uszkodzony plik. Skrypt scraper.py stworzy go od nowa.
-        os.remove(DATA_FILE)
-        return None
+jobs:
+  build-and-visualize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-    df['uzytkownicy_online'] = pd.to_numeric(df['uzytkownicy_online'], errors='coerce')
-    df['aktywne_transmisje'] = pd.to_numeric(df['aktywne_transmisje'], errors='coerce')
-    
-    if 'czas_wykonania_s' not in df.columns:
-        df['czas_wykonania_s'] = 0
-    df['czas_wykonania_s'] = pd.to_numeric(df['czas_wykonania_s'], errors='coerce').fillna(0)
+      - name: Install Google Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
 
-    df['data_i_godzina'] = pd.to_datetime(df['data_i_godzina'])
-    
-    return df
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-# Reszta pliku pozostaje bez zmian
-def create_chart_and_analysis():
-    df = clean_and_load_data()
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    if df is None or df.empty:
-        print(f"Plik {DATA_FILE} nie istnieje lub jest pusty. Tworzę pusty plik HTML.")
-        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-            f.write("<html><body><h1>Brak danych do wygenerowania wykresu. Czekam na pierwszy odczyt...</h1></body></html>")
-        return
+      - name: Krok 1 - Zbierz nowe dane
+        run: python scraper.py
 
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=df['data_i_godzina'], y=df['uzytkownicy_online'], name='Użytkownicy online', line=dict(color='royalblue', width=2)), secondary_y=False)
-    fig.add_trace(go.Scatter(x=df['data_i_godzina'], y=df['aktywne_transmisje'], name='Aktywne transmisje', line=dict(color='firebrick', width=2, dash='dot')), secondary_y=True)
+      - name: Krok 2 - Wygeneruj nowy wykres
+        run: python generate_chart.py
 
-    fig.update_layout(title_text='Statystyki ShowUp.tv w Czasie', template='plotly_dark')
-    fig.update_yaxes(title_text='<b>Użytkownicy online</b>', secondary_y=False, color='royalblue')
-    fig.update_yaxes(title_text='<b>Aktywne transmisje</b>', secondary_y=True, color='firebrick')
-    fig.update_xaxes(
-        rangeslider_visible=True,
-        rangeselector=dict(
-            buttons=list([
-                dict(count=1, label="1h", step="hour", stepmode="backward"),
-                dict(count=6, label="6h", step="hour", stepmode="backward"),
-                dict(count=12, label="12h", step="hour", stepmode="backward"),
-                dict(count=1, label="24h", step="day", stepmode="backward"),
-                dict(count=7, label="7d", step="day", stepmode="backward"),
-                dict(step="all")
-            ]),
-            bgcolor="#333", bordercolor="#555", font=dict(color="white")
-        )
-    )
-
-    avg_duration = df[df['czas_wykonania_s'] > 0]['czas_wykonania_s'].mean()
-    runs_per_day_20min = 24 * 3
-    runs_per_day_30min = 24 * 2
-    
-    monthly_usage_20min = (avg_duration * runs_per_day_20min * 30) / 60 if avg_duration > 0 else 0
-    monthly_usage_30min = (avg_duration * runs_per_day_30min * 30) / 60 if avg_duration > 0 else 0
-
-    analysis_html = f"""
-    <div style="font-family: Arial, sans-serif; color: white; background-color: #111; padding: 20px; border-radius: 10px; margin-top: 20px;">
-        <h2 style="border-bottom: 2px solid #555; padding-bottom: 10px;">Analizator Limitu GitHub Actions</h2>
-        <p><strong>Średni czas wykonania jednego zadania:</strong> {avg_duration:.2f} sekund</p>
-        <hr style="border-color: #333;">
-        <h4 style="margin-bottom: 5px;">Scenariusz: Uruchomienie co 20 minut (72 / dobę)</h4>
-        <p><strong>Szacowane miesięczne zużycie:</strong> <strong style="color: {'orange' if monthly_usage_20min > 1800 else 'lightgreen'};">{monthly_usage_20min:.0f}</strong> / 2000 minut</p>
-        <h4 style="margin-bottom: 5px;">Scenariusz: Uruchomienie co 30 minut (48 / dobę)</h4>
-        <p><strong>Szacowane miesięczne zużycie:</strong> <strong style="color: {'orange' if monthly_usage_30min > 1800 else 'lightgreen'};">{monthly_usage_30min:.0f}</strong> / 2000 minut</p>
-        <p style="font-size: 12px; color: #888;"><i>Powyższe dane są szacunkowe i bazują na dotychczasowych uruchomieniach. Darmowy limit dla repozytoriów publicznych to 2000 minut/miesiąc.</i></p>
-    </div>
-    """
-
-    chart_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
-    
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        f.write(f"""
-        <html>
-            <head><title>Statystyki ShowUp.tv</title></head>
-            <body style="background-color: #111;">
-                {chart_html}
-                {analysis_html}
-            </body>
-        </html>
-        """)
-    print(f"Wykres i analiza zostały zapisane do pliku {OUTPUT_FILE}")
-
-if __name__ == "__main__":
-    create_chart_and_analysis()
+      - name: Krok 3 - Zapisz wyniki (dane i wykres)
+        run: |-
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add dane.csv index.html
+          git diff --staged --quiet || git commit -m "Aktualizacja danych i wykresu"
+          git push
