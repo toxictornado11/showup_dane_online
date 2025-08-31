@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v2
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v3
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -39,28 +39,31 @@ def create_dashboard():
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # --- POCZĄTEK ZMIANY: Dodajemy hovertemplate ---
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['uzytkownicy_online'], name='Użytkownicy online',
         mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5),
-        hovertemplate='%{y}<extra></extra>' # Pokazuje tylko wartość Y (liczbę)
+        hovertemplate='%{y}<extra></extra>'
     ), secondary_y=False)
     
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['aktywne_transmisje'], name='Aktywne transmisje',
         mode='lines+markers', line=dict(color='firebrick', width=2, dash='dot'), marker=dict(size=5),
-        hovertemplate='%{y}<extra></extra>' # Pokazuje tylko wartość Y (liczbę)
+        hovertemplate='%{y}<extra></extra>'
     ), secondary_y=True)
-    # --- KONIEC ZMIANY ---
 
+    # --- POCZĄTEK ZMIANY: Poprawki w układzie ---
     fig.update_layout(
-        title_text='Statystyki ShowUp.tv w Czasie',
+        title=dict(
+            text='Statystyki ShowUp.tv', # Zmieniamy tekst tytułu
+            x=0.5, # Ustawiamy tytuł idealnie na środku
+            xanchor='center'
+        ),
         template='plotly_dark',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=20, r=20, t=50, b=20),
+        margin=dict(l=20, r=20, t=80, b=20), # Zwiększamy górny margines, aby zrobić miejsce
         dragmode='pan',
         xaxis_rangeslider_visible=True,
-        hovermode='x unified', # Ulepszamy hover, aby pokazywał obie wartości naraz
+        hovermode='x unified',
         xaxis=dict(
             rangeselector=dict(
                 buttons=list([
@@ -75,6 +78,8 @@ def create_dashboard():
             )
         )
     )
+    # --- KONIEC ZMIANY ---
+    
     fig.update_yaxes(title_text='<b>Użytkownicy online</b>', secondary_y=False, color='royalblue')
     fig.update_yaxes(title_text='<b>Aktywne transmisje</b>', secondary_y=True, color='firebrick')
     
