@@ -1,11 +1,7 @@
 name: Zbierz i Wizualizuj Statystyki
 
 on:
-  schedule:
-    # Uruchom co 10 minut
-    - cron: '*/10 * * * *'
-  
-  # Pozostawiamy możliwość ręcznego uruchomienia
+  # USUŃ 'schedule'. Automat będzie teraz uruchamiany tylko przez API.
   workflow_dispatch:
 
 jobs:
