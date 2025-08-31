@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v4
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v5
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -39,19 +39,16 @@ def create_dashboard():
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
+    # Usunęliśmy hovertemplate z pojedynczych śladów, ponieważ hovermode='x unified' ma własne formatowanie
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['uzytkownicy_online'], name='Użytkownicy online',
-        mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5),
-        hovertemplate='%{y}<extra></extra>'
+        mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5)
     ), secondary_y=False)
     
-    # --- POCZĄTEK ZMIANY: Usuwamy dash='dot' ---
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['aktywne_transmisje'], name='Aktywne transmisje',
-        mode='lines+markers', line=dict(color='firebrick', width=2), marker=dict(size=5), # Usunięto dash='dot'
-        hovertemplate='%{y}<extra></extra>'
+        mode='lines+markers', line=dict(color='firebrick', width=2), marker=dict(size=5)
     ), secondary_y=True)
-    # --- KONIEC ZMIANY ---
 
     fig.update_layout(
         title=dict(
@@ -66,6 +63,9 @@ def create_dashboard():
         xaxis_rangeslider_visible=True,
         hovermode='x unified',
         xaxis=dict(
+            # --- POCZĄTEK ZMIANY: Dodajemy formatowanie daty w dymku ---
+            hoverformat='%b %d, %Y, %H:%M', # Format: Miesiąc Dzień, Rok, Godzina:Minuta
+            # --- KONIEC ZMIANY ---
             rangeselector=dict(
                 buttons=list([
                     dict(count=1, label="1h", step="hour", stepmode="backward"),
