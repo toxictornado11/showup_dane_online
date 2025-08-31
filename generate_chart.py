@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v2
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -38,14 +38,20 @@ def create_dashboard():
         return
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    # --- POCZĄTEK ZMIANY: Dodajemy hovertemplate ---
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['uzytkownicy_online'], name='Użytkownicy online',
-        mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5)
+        mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5),
+        hovertemplate='%{y}<extra></extra>' # Pokazuje tylko wartość Y (liczbę)
     ), secondary_y=False)
+    
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['aktywne_transmisje'], name='Aktywne transmisje',
-        mode='lines+markers', line=dict(color='firebrick', width=2, dash='dot'), marker=dict(size=5)
+        mode='lines+markers', line=dict(color='firebrick', width=2, dash='dot'), marker=dict(size=5),
+        hovertemplate='%{y}<extra></extra>' # Pokazuje tylko wartość Y (liczbę)
     ), secondary_y=True)
+    # --- KONIEC ZMIANY ---
 
     fig.update_layout(
         title_text='Statystyki ShowUp.tv w Czasie',
@@ -54,6 +60,7 @@ def create_dashboard():
         margin=dict(l=20, r=20, t=50, b=20),
         dragmode='pan',
         xaxis_rangeslider_visible=True,
+        hovermode='x unified', # Ulepszamy hover, aby pokazywał obie wartości naraz
         xaxis=dict(
             rangeselector=dict(
                 buttons=list([
@@ -73,14 +80,11 @@ def create_dashboard():
     
     config = {'modeBarButtonsToRemove': ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'], 'scrollZoom': True}
 
-    # --- ZMIANY W ANALIZATORZE: Przywracamy prognozy ---
     total_seconds_used = df['czas_wykonania_s'].sum()
     total_minutes_used = total_seconds_used / 60
     avg_duration = df[df['czas_wykonania_s'] > 0]['czas_wykonania_s'].mean()
     
-    # Ustawiamy interwał na podstawie pliku workflow (domyślnie 10 min)
-    # W przyszłości można to czytać z pliku, ale na razie hardcode jest OK
-    runs_per_day_current = 24 * 6 # dla 10 min
+    runs_per_day_current = 24 * 6
     monthly_usage_current = (avg_duration * runs_per_day_current * 30) / 60 if avg_duration > 0 else 0
     
     start_date = df['data_i_godzina'].min().strftime('%Y-%m-%d')
@@ -108,7 +112,6 @@ def create_dashboard():
 
     chart_div = fig.to_html(full_html=False, include_plotlyjs='cdn', config=config)
     
-    # --- ZMIANY W STYLACH CSS ---
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
         f.write(f"""
         <!DOCTYPE html>
