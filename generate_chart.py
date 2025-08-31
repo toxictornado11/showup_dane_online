@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v5
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v6 (POPRAWKA HOVER)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -39,16 +39,19 @@ def create_dashboard():
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # Usunęliśmy hovertemplate z pojedynczych śladów, ponieważ hovermode='x unified' ma własne formatowanie
+    # --- POCZĄTEK ZMIANY: Przywracamy i poprawiamy hovertemplate ---
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['uzytkownicy_online'], name='Użytkownicy online',
-        mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5)
+        mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5),
+        hovertemplate='<b>Użytkownicy:</b> %{y}<extra></extra>'
     ), secondary_y=False)
     
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['aktywne_transmisje'], name='Aktywne transmisje',
-        mode='lines+markers', line=dict(color='firebrick', width=2), marker=dict(size=5)
+        mode='lines+markers', line=dict(color='firebrick', width=2), marker=dict(size=5),
+        hovertemplate='<b>Transmisje:</b> %{y}<extra></extra>'
     ), secondary_y=True)
+    # --- KONIEC ZMIANY ---
 
     fig.update_layout(
         title=dict(
@@ -63,20 +66,12 @@ def create_dashboard():
         xaxis_rangeslider_visible=True,
         hovermode='x unified',
         xaxis=dict(
-            # --- POCZĄTEK ZMIANY: Dodajemy formatowanie daty w dymku ---
-            hoverformat='%b %d, %Y, %H:%M', # Format: Miesiąc Dzień, Rok, Godzina:Minuta
-            # --- KONIEC ZMIANY ---
-            rangeselector=dict(
-                buttons=list([
-                    dict(count=1, label="1h", step="hour", stepmode="backward"),
-                    dict(count=6, label="6h", step="hour", stepmode="backward"),
-                    dict(count=12, label="12h", step="hour", stepmode="backward"),
-                    dict(count=1, label="24h", step="day", stepmode="backward"),
-                    dict(count=7, label="7d", step="day", stepmode="backward"),
-                    dict(step="all", label="Całość")
-                ]),
-                bgcolor="#333", bordercolor="#555", font=dict(color="white")
-            )
+            hoverformat='%b %d, %Y, %H:%M'
+        ),
+        # --- DODATKOWA ZMIANA: Poprawiamy formatowanie dymka ---
+        hoverlabel=dict(
+            bgcolor="rgba(17, 17, 17, 0.8)",
+            bordercolor="rgba(150, 150, 150, 0.8)"
         )
     )
     
