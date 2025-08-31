@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v3
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v4
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -45,22 +45,23 @@ def create_dashboard():
         hovertemplate='%{y}<extra></extra>'
     ), secondary_y=False)
     
+    # --- POCZĄTEK ZMIANY: Usuwamy dash='dot' ---
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['aktywne_transmisje'], name='Aktywne transmisje',
-        mode='lines+markers', line=dict(color='firebrick', width=2, dash='dot'), marker=dict(size=5),
+        mode='lines+markers', line=dict(color='firebrick', width=2), marker=dict(size=5), # Usunięto dash='dot'
         hovertemplate='%{y}<extra></extra>'
     ), secondary_y=True)
+    # --- KONIEC ZMIANY ---
 
-    # --- POCZĄTEK ZMIANY: Poprawki w układzie ---
     fig.update_layout(
         title=dict(
-            text='Statystyki ShowUp.tv', # Zmieniamy tekst tytułu
-            x=0.5, # Ustawiamy tytuł idealnie na środku
+            text='Statystyki ShowUp.tv',
+            x=0.5,
             xanchor='center'
         ),
         template='plotly_dark',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=20, r=20, t=80, b=20), # Zwiększamy górny margines, aby zrobić miejsce
+        margin=dict(l=20, r=20, t=80, b=20),
         dragmode='pan',
         xaxis_rangeslider_visible=True,
         hovermode='x unified',
@@ -78,7 +79,6 @@ def create_dashboard():
             )
         )
     )
-    # --- KONIEC ZMIANY ---
     
     fig.update_yaxes(title_text='<b>Użytkownicy online</b>', secondary_y=False, color='royalblue')
     fig.update_yaxes(title_text='<b>Aktywne transmisje</b>', secondary_y=True, color='firebrick')
