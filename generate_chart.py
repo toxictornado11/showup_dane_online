@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v9 (SNAP-TO-HOUR & UI-FIX)
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v10 (DYNAMICZNY RANGESELECTOR)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -53,45 +53,6 @@ def create_dashboard():
         hovertemplate='<b>Transmisje:</b> %{y}<extra></extra>'
     ), secondary_y=True)
 
-    # --- POCZĄTEK ZMIANY: Nowa logika przycisków, styl i usunięcie stopki ---
-    now = pd.to_datetime(datetime.now(ZoneInfo("Europe/Warsaw")))
-    
-    # Logika "przyciągania" do pełnych godzin
-    end_hour = now.floor('H')
-    range_1h = [end_hour - pd.Timedelta(hours=1), end_hour]
-    range_6h = [end_hour - pd.Timedelta(hours=6), end_hour]
-    range_12h = [end_hour - pd.Timedelta(hours=12), end_hour]
-    
-    # Logika dla dni
-    end_day = now.ceil('D') # Zaokrąglij do końca bieżącego dnia
-    range_1d = [end_day - pd.Timedelta(days=1), end_day]
-    range_7d = [end_day - pd.Timedelta(days=7), end_day]
-
-    fig.update_layout(
-        updatemenus=[
-            dict(
-                type="buttons",
-                direction="left",
-                x=0.01,
-                y=1.15,
-                xanchor="left",
-                yanchor="top",
-                showactive=False, # Wyłączamy domyślne, jasne podświetlenie
-                bgcolor="#333",
-                bordercolor="#666",
-                font=dict(color="#FFFFFF"),
-                buttons=list([
-                    dict(label="1h", method="relayout", args=["xaxis.range", range_1h]),
-                    dict(label="6h", method="relayout", args=["xaxis.range", range_6h]),
-                    dict(label="12h", method="relayout", args=["xaxis.range", range_12h]),
-                    dict(label="1d", method="relayout", args=["xaxis.range", range_1d]),
-                    dict(label="7d", method="relayout", args=["xaxis.range", range_7d]),
-                    dict(label="All", method="relayout", args=["xaxis.range", [df['data_i_godzina'].min(), df['data_i_godzina'].max()]]),
-                ]),
-            )
-        ])
-    # --- KONIEC ZMIANY ---
-
     fig.update_layout(
         title=dict(
             text='Statystyki ShowUp.tv',
@@ -100,26 +61,48 @@ def create_dashboard():
         ),
         template='plotly_dark',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=20, r=20, t=100, b=20),
+        margin=dict(l=20, r=20, t=80, b=20),
         dragmode='pan',
-        xaxis_rangeslider_visible=True,
         hovermode='x unified',
-        xaxis=dict(
-            hoverformat='%b %d, %Y, %H:%M',
-            # Domyślny widok: ostatnie 24 godziny (względne)
-            range=[df['data_i_godzina'].max() - pd.Timedelta(days=1), df['data_i_godzina'].max()]
-        ),
         hoverlabel=dict(
             bgcolor="rgba(17, 17, 17, 0.8)",
             bordercolor="rgba(150, 150, 150, 0.8)"
         )
     )
     
+    # --- POCZĄTEK ZMIANY: Zastąpienie statycznych przycisków dynamicznym rangeselector ---
+    fig.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1h", step="hour", stepmode="backward"),
+                dict(count=6, label="6h", step="hour", stepmode="backward"),
+                dict(count=12, label="12h", step="hour", stepmode="backward"),
+                dict(count=1, label="1d", step="day", stepmode="backward"),
+                dict(count=7, label="7d", step="day", stepmode="backward"),
+                dict(step="all", label="All")
+            ]),
+            # Pozycjonowanie i styl
+            x=0.01,
+            y=0.99,
+            xanchor="left",
+            yanchor="top",
+            bgcolor="#333",
+            activecolor="#555",
+            bordercolor="#666",
+            font=dict(color="#FFFFFF")
+        ),
+        # Ustawienie domyślnego widoku na ostatnie 24 godziny
+        range=[df['data_i_godzina'].max() - pd.Timedelta(days=1), df['data_i_godzina'].max()]
+    )
+    # --- KONIEC ZMIANY ---
+    
     fig.update_yaxes(title_text='<b>Użytkownicy online</b>', secondary_y=False, color='royalblue')
     fig.update_yaxes(title_text='<b>Aktywne transmisje</b>', secondary_y=True, color='firebrick')
     
     config = {'modeBarButtonsToRemove': ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'], 'scrollZoom': True}
 
+    now = datetime.now(ZoneInfo("Europe/Warsaw"))
     df_current_month = df[(df['data_i_godzina'].dt.year == now.year) & (df['data_i_godzina'].dt.month == now.month)]
     total_seconds_used = df_current_month['czas_wykonania_s'].sum()
     total_minutes_used = total_seconds_used / 60
