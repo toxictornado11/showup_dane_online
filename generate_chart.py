@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v10 (DYNAMICZNY RANGESELECTOR)
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v11 (UI & LOGIC FIX)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -61,7 +61,7 @@ def create_dashboard():
         ),
         template='plotly_dark',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=20, r=20, t=80, b=20),
+        margin=dict(l=20, r=20, t=100, b=20), # --- ZMIANA: Zwiększamy margines na przyciski ---
         dragmode='pan',
         hovermode='x unified',
         hoverlabel=dict(
@@ -70,21 +70,22 @@ def create_dashboard():
         )
     )
     
-    # --- POCZĄTEK ZMIANY: Zastąpienie statycznych przycisków dynamicznym rangeselector ---
+    # --- POCZĄTEK ZMIANY: Poprawiona pozycja i logika rangeselector ---
     fig.update_xaxes(
         rangeslider_visible=True,
         rangeselector=dict(
             buttons=list([
-                dict(count=1, label="1h", step="hour", stepmode="backward"),
+                # Nowa, intuicyjna logika "todate"
+                dict(count=1, label="1h", step="hour", stepmode="todate"),
                 dict(count=6, label="6h", step="hour", stepmode="backward"),
                 dict(count=12, label="12h", step="hour", stepmode="backward"),
-                dict(count=1, label="1d", step="day", stepmode="backward"),
-                dict(count=7, label="7d", step="day", stepmode="backward"),
+                dict(count=1, label="1d", step="day", stepmode="todate"),
+                dict(count=7, label="7d", step="day", stepmode="todate"),
                 dict(step="all", label="All")
             ]),
-            # Pozycjonowanie i styl
+            # Pozycjonowanie NAD wykresem i styl
             x=0.01,
-            y=0.99,
+            y=1.15, # Przesunięcie przycisków nad wykres
             xanchor="left",
             yanchor="top",
             bgcolor="#333",
@@ -92,7 +93,7 @@ def create_dashboard():
             bordercolor="#666",
             font=dict(color="#FFFFFF")
         ),
-        # Ustawienie domyślnego widoku na ostatnie 24 godziny
+        # Domyślny widok bez zmian (ostatnie 24h)
         range=[df['data_i_godzina'].max() - pd.Timedelta(days=1), df['data_i_godzina'].max()]
     )
     # --- KONIEC ZMIANY ---
