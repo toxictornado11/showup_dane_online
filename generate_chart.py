@@ -1,8 +1,10 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v6 (POPRAWKA HOVER)
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v7 (LICZNIK MIESIĘCZNY)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
+from datetime import datetime # --- ZMIANA: Importujemy datetime ---
+from zoneinfo import ZoneInfo # --- ZMIANA: Importujemy ZoneInfo ---
 
 DATA_FILE = 'dane.csv'
 OUTPUT_FILE = 'index.html'
@@ -39,7 +41,6 @@ def create_dashboard():
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # --- POCZĄTEK ZMIANY: Przywracamy i poprawiamy hovertemplate ---
     fig.add_trace(go.Scatter(
         x=df['data_i_godzina'], y=df['uzytkownicy_online'], name='Użytkownicy online',
         mode='lines+markers', line=dict(color='royalblue', width=2), marker=dict(size=5),
@@ -51,7 +52,6 @@ def create_dashboard():
         mode='lines+markers', line=dict(color='firebrick', width=2), marker=dict(size=5),
         hovertemplate='<b>Transmisje:</b> %{y}<extra></extra>'
     ), secondary_y=True)
-    # --- KONIEC ZMIANY ---
 
     fig.update_layout(
         title=dict(
@@ -68,7 +68,6 @@ def create_dashboard():
         xaxis=dict(
             hoverformat='%b %d, %Y, %H:%M'
         ),
-        # --- DODATKOWA ZMIANA: Poprawiamy formatowanie dymka ---
         hoverlabel=dict(
             bgcolor="rgba(17, 17, 17, 0.8)",
             bordercolor="rgba(150, 150, 150, 0.8)"
@@ -80,10 +79,19 @@ def create_dashboard():
     
     config = {'modeBarButtonsToRemove': ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'], 'scrollZoom': True}
 
-    total_seconds_used = df['czas_wykonania_s'].sum()
-    total_minutes_used = total_seconds_used / 60
-    avg_duration = df[df['czas_wykonania_s'] > 0]['czas_wykonania_s'].mean()
+    # --- POCZĄTEK ZMIANY: Logika resetowania licznika ---
+    now = datetime.now(ZoneInfo("Europe/Warsaw"))
     
+    # Filtrujemy dane, aby uwzględnić tylko wpisy z bieżącego miesiąca i roku
+    df_current_month = df[(df['data_i_godzina'].dt.year == now.year) & (df['data_i_godzina'].dt.month == now.month)]
+    
+    # Obliczamy zużycie tylko dla bieżącego miesiąca
+    total_seconds_used = df_current_month['czas_wykonania_s'].sum()
+    total_minutes_used = total_seconds_used / 60
+    # --- KONIEC ZMIANY ---
+
+    # Średnia i prognoza pozostają liczone z całego zbioru dla większej dokładności
+    avg_duration = df[df['czas_wykonania_s'] > 0]['czas_wykonania_s'].mean()
     runs_per_day_current = 24 * 6
     monthly_usage_current = (avg_duration * runs_per_day_current * 30) / 60 if avg_duration > 0 else 0
     
@@ -94,11 +102,11 @@ def create_dashboard():
     <div class="analyzer">
         <div class="stats-grid">
             <div>
-                <p class="stat-label">Dotychczasowe zużycie:</p>
+                <p class="stat-label">Dotychczasowe zużycie (w tym miesiącu):</p>
                 <p class="stat-value">{total_minutes_used:.2f} / 2000 minut</p>
             </div>
             <div>
-                <p class="stat-label">Średni czas zadania:</p>
+                <p class="stat-label">Średni czas zadania (całkowity):</p>
                 <p class="stat-value">{avg_duration:.2f} sekund</p>
             </div>
             <div>
