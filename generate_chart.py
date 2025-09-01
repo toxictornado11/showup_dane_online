@@ -1,4 +1,4 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v8 (PRZYCISKI ZAKRESU CZASU)
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v9 (SNAP-TO-HOUR & UI-FIX)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -53,8 +53,19 @@ def create_dashboard():
         hovertemplate='<b>Transmisje:</b> %{y}<extra></extra>'
     ), secondary_y=True)
 
-    # --- POCZĄTEK ZMIANY: Dodanie przycisków i ustawienie domyślnego widoku ---
-    last_timestamp = df['data_i_godzina'].max()
+    # --- POCZĄTEK ZMIANY: Nowa logika przycisków, styl i usunięcie stopki ---
+    now = pd.to_datetime(datetime.now(ZoneInfo("Europe/Warsaw")))
+    
+    # Logika "przyciągania" do pełnych godzin
+    end_hour = now.floor('H')
+    range_1h = [end_hour - pd.Timedelta(hours=1), end_hour]
+    range_6h = [end_hour - pd.Timedelta(hours=6), end_hour]
+    range_12h = [end_hour - pd.Timedelta(hours=12), end_hour]
+    
+    # Logika dla dni
+    end_day = now.ceil('D') # Zaokrąglij do końca bieżącego dnia
+    range_1d = [end_day - pd.Timedelta(days=1), end_day]
+    range_7d = [end_day - pd.Timedelta(days=7), end_day]
 
     fig.update_layout(
         updatemenus=[
@@ -65,26 +76,17 @@ def create_dashboard():
                 y=1.15,
                 xanchor="left",
                 yanchor="top",
-                showactive=True,
+                showactive=False, # Wyłączamy domyślne, jasne podświetlenie
+                bgcolor="#333",
+                bordercolor="#666",
+                font=dict(color="#FFFFFF"),
                 buttons=list([
-                    dict(label="1h",
-                         method="relayout",
-                         args=["xaxis.range", [last_timestamp - pd.Timedelta(hours=1), last_timestamp]]),
-                    dict(label="6h",
-                         method="relayout",
-                         args=["xaxis.range", [last_timestamp - pd.Timedelta(hours=6), last_timestamp]]),
-                    dict(label="12h",
-                         method="relayout",
-                         args=["xaxis.range", [last_timestamp - pd.Timedelta(hours=12), last_timestamp]]),
-                    dict(label="1d",
-                         method="relayout",
-                         args=["xaxis.range", [last_timestamp - pd.Timedelta(days=1), last_timestamp]]),
-                    dict(label="7d",
-                         method="relayout",
-                         args=["xaxis.range", [last_timestamp - pd.Timedelta(days=7), last_timestamp]]),
-                    dict(label="Całość",
-                         method="relayout",
-                         args=["xaxis.range", [df['data_i_godzina'].min(), last_timestamp]]),
+                    dict(label="1h", method="relayout", args=["xaxis.range", range_1h]),
+                    dict(label="6h", method="relayout", args=["xaxis.range", range_6h]),
+                    dict(label="12h", method="relayout", args=["xaxis.range", range_12h]),
+                    dict(label="1d", method="relayout", args=["xaxis.range", range_1d]),
+                    dict(label="7d", method="relayout", args=["xaxis.range", range_7d]),
+                    dict(label="All", method="relayout", args=["xaxis.range", [df['data_i_godzina'].min(), df['data_i_godzina'].max()]]),
                 ]),
             )
         ])
@@ -98,14 +100,14 @@ def create_dashboard():
         ),
         template='plotly_dark',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=20, r=20, t=100, b=20), # Zwiększamy górny margines, by zrobić miejsce na przyciski
+        margin=dict(l=20, r=20, t=100, b=20),
         dragmode='pan',
         xaxis_rangeslider_visible=True,
         hovermode='x unified',
         xaxis=dict(
             hoverformat='%b %d, %Y, %H:%M',
-            # Ustawienie domyślnego widoku na ostatnie 24 godziny (1 dzień)
-            range=[last_timestamp - pd.Timedelta(days=1), last_timestamp]
+            # Domyślny widok: ostatnie 24 godziny (względne)
+            range=[df['data_i_godzina'].max() - pd.Timedelta(days=1), df['data_i_godzina'].max()]
         ),
         hoverlabel=dict(
             bgcolor="rgba(17, 17, 17, 0.8)",
@@ -118,7 +120,6 @@ def create_dashboard():
     
     config = {'modeBarButtonsToRemove': ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'], 'scrollZoom': True}
 
-    now = datetime.now(ZoneInfo("Europe/Warsaw"))
     df_current_month = df[(df['data_i_godzina'].dt.year == now.year) & (df['data_i_godzina'].dt.month == now.month)]
     total_seconds_used = df_current_month['czas_wykonania_s'].sum()
     total_minutes_used = total_seconds_used / 60
@@ -127,9 +128,6 @@ def create_dashboard():
     runs_per_day_current = 24 * 6
     monthly_usage_current = (avg_duration * runs_per_day_current * 30) / 60 if avg_duration > 0 else 0
     
-    start_date = df['data_i_godzina'].min().strftime('%Y-%m-%d')
-    end_date = df['data_i_godzina'].max().strftime('%Y-%m-%d')
-
     analysis_html = f"""
     <div class="analyzer">
         <div class="stats-grid">
@@ -146,7 +144,6 @@ def create_dashboard():
                 <p class="stat-value" style="color: {'orange' if monthly_usage_current > 1800 else 'lightgreen'};">{monthly_usage_current:.0f} / 2000 minut</p>
             </div>
         </div>
-        <p class="info"><i>Dane zebrane w okresie od {start_date} do {end_date}. Limit odnawia się co miesiąc.</i></p>
     </div>
     """
 
@@ -168,7 +165,6 @@ def create_dashboard():
                     .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; text-align: center; }}
                     .stat-label {{ margin: 0 0 5px 0; font-size: 14px; color: #aaa; }}
                     .stat-value {{ margin: 0; font-size: 18px; font-weight: bold; }}
-                    .info {{ font-size: 12px; color: #888; text-align: center; margin-top: 15px; border-top: 1px solid #333; padding-top: 10px; }}
                 </style>
             </head>
             <body>
