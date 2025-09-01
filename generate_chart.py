@@ -1,10 +1,10 @@
-# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v7 (LICZNIK MIESIĘCZNY)
+# generate_chart.py - WERSJA Z FINALNYM, KOMPAKTOWYM INTERFEJSEM v8 (PRZYCISKI ZAKRESU CZASU)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
-from datetime import datetime # --- ZMIANA: Importujemy datetime ---
-from zoneinfo import ZoneInfo # --- ZMIANA: Importujemy ZoneInfo ---
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 DATA_FILE = 'dane.csv'
 OUTPUT_FILE = 'index.html'
@@ -53,6 +53,43 @@ def create_dashboard():
         hovertemplate='<b>Transmisje:</b> %{y}<extra></extra>'
     ), secondary_y=True)
 
+    # --- POCZĄTEK ZMIANY: Dodanie przycisków i ustawienie domyślnego widoku ---
+    last_timestamp = df['data_i_godzina'].max()
+
+    fig.update_layout(
+        updatemenus=[
+            dict(
+                type="buttons",
+                direction="left",
+                x=0.01,
+                y=1.15,
+                xanchor="left",
+                yanchor="top",
+                showactive=True,
+                buttons=list([
+                    dict(label="1h",
+                         method="relayout",
+                         args=["xaxis.range", [last_timestamp - pd.Timedelta(hours=1), last_timestamp]]),
+                    dict(label="6h",
+                         method="relayout",
+                         args=["xaxis.range", [last_timestamp - pd.Timedelta(hours=6), last_timestamp]]),
+                    dict(label="12h",
+                         method="relayout",
+                         args=["xaxis.range", [last_timestamp - pd.Timedelta(hours=12), last_timestamp]]),
+                    dict(label="1d",
+                         method="relayout",
+                         args=["xaxis.range", [last_timestamp - pd.Timedelta(days=1), last_timestamp]]),
+                    dict(label="7d",
+                         method="relayout",
+                         args=["xaxis.range", [last_timestamp - pd.Timedelta(days=7), last_timestamp]]),
+                    dict(label="Całość",
+                         method="relayout",
+                         args=["xaxis.range", [df['data_i_godzina'].min(), last_timestamp]]),
+                ]),
+            )
+        ])
+    # --- KONIEC ZMIANY ---
+
     fig.update_layout(
         title=dict(
             text='Statystyki ShowUp.tv',
@@ -61,12 +98,14 @@ def create_dashboard():
         ),
         template='plotly_dark',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=20, r=20, t=80, b=20),
+        margin=dict(l=20, r=20, t=100, b=20), # Zwiększamy górny margines, by zrobić miejsce na przyciski
         dragmode='pan',
         xaxis_rangeslider_visible=True,
         hovermode='x unified',
         xaxis=dict(
-            hoverformat='%b %d, %Y, %H:%M'
+            hoverformat='%b %d, %Y, %H:%M',
+            # Ustawienie domyślnego widoku na ostatnie 24 godziny (1 dzień)
+            range=[last_timestamp - pd.Timedelta(days=1), last_timestamp]
         ),
         hoverlabel=dict(
             bgcolor="rgba(17, 17, 17, 0.8)",
@@ -79,18 +118,11 @@ def create_dashboard():
     
     config = {'modeBarButtonsToRemove': ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'], 'scrollZoom': True}
 
-    # --- POCZĄTEK ZMIANY: Logika resetowania licznika ---
     now = datetime.now(ZoneInfo("Europe/Warsaw"))
-    
-    # Filtrujemy dane, aby uwzględnić tylko wpisy z bieżącego miesiąca i roku
     df_current_month = df[(df['data_i_godzina'].dt.year == now.year) & (df['data_i_godzina'].dt.month == now.month)]
-    
-    # Obliczamy zużycie tylko dla bieżącego miesiąca
     total_seconds_used = df_current_month['czas_wykonania_s'].sum()
     total_minutes_used = total_seconds_used / 60
-    # --- KONIEC ZMIANY ---
-
-    # Średnia i prognoza pozostają liczone z całego zbioru dla większej dokładności
+    
     avg_duration = df[df['czas_wykonania_s'] > 0]['czas_wykonania_s'].mean()
     runs_per_day_current = 24 * 6
     monthly_usage_current = (avg_duration * runs_per_day_current * 30) / 60 if avg_duration > 0 else 0
